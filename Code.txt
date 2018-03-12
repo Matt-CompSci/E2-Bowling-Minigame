@@ -1,0 +1,460 @@
+@name Bowling Minigame
+@inputs [EGP]:wirelink
+@persist [TrajectoryHoloID BallID PinID Positioning HitPin PlayerPos Turn KnockedDown First Round Playing]:number 
+@persist [PinPosition BallDirection BallPos]:vector
+@persist [PinDirections]:array
+@persist [Players]:table
+@persist [CurPly]:entity
+@persist [CommandSuffix]:string
+
+if(first())
+{
+    
+    CommandSuffix = ""
+    
+    function void createPin(Pos:vector)
+    {
+        CurHolo = holoAmount() + 1
+        BaseHolo = CurHolo
+        holoCreate(CurHolo)
+        holoModel(CurHolo, "torus3")
+        holoPos(CurHolo, Pos)
+        holoScale(CurHolo, vec(0.25, 0.25, 8))
+        holoColor(CurHolo, vec(150))
+        holoParent(CurHolo, entity())
+        
+        CurHolo++
+        holoCreate(CurHolo)
+        holoModel(CurHolo, "torus3")
+        holoScale(CurHolo, vec(0.3, 0.3, 0.6))
+        holoPos(CurHolo, Pos + vec(0, 0, 10))
+        holoColor(CurHolo, vec(255, 0, 0))
+        holoParent(CurHolo, BaseHolo)
+        
+        CurHolo++
+        holoCreate(CurHolo)
+        holoModel(CurHolo, "torus3")
+        holoScale(CurHolo, vec(0.3, 0.3, 0.6))
+        holoPos(CurHolo, Pos + vec(0, 0, 7))
+        holoColor(CurHolo, vec(255, 0, 0))
+        holoParent(CurHolo, BaseHolo)
+    }
+    
+    function void createPins(Pos:vector)
+    {
+        PinID = holoAmount() + 1
+        PinPosition = Pos
+        createPin(Pos)
+        createPin(Pos + vec(0, 10, 0))
+        createPin(Pos - vec(0, 10, 0))
+        createPin(Pos + vec(10, 5, 0))
+        createPin(Pos + vec(10, -5, 0))
+        createPin(Pos + vec(20, 0, 0))
+        createPin(Pos + vec(-10, 5, 0))
+        createPin(Pos + vec(-10, -5, 0))
+        createPin(Pos + vec(-10, 15, 0))
+        createPin(Pos + vec(-10, -15, 0))
+    }
+    function void createBall()
+    {
+        CurHolo = holoAmount() + 1
+        BallID = CurHolo
+        holoCreate(CurHolo, CurPly:pos() + CurPly:forward() * 10 + CurPly:up() * 50)
+        holoModel(CurHolo, "models/xqm/rails/gumball_1.mdl")
+        holoScale(CurHolo, vec(0.5))
+        holoColor(CurHolo, floor(randvec(1, 255)))
+        holoParent(CurHolo, CurPly)
+    }
+    
+    function void createTrajectory()
+    {
+        CurHolo++
+        TrajectoryHoloID = CurHolo
+        
+        for(I = CurHolo, CurHolo + 10)
+        {
+            holoCreate(I)
+            holoModel(I, "sphere")
+            holoScale(I, vec(0.1))
+        }
+    }
+    
+    function void drawPlayersScreen()
+    {
+        EGP:egpClear()
+        
+        EGP:egpBox(1, vec2(256), vec2(512))
+        EGP:egpMaterial(1, "gui/gradient_up")
+        EGP:egpColor(1, vec(163, 50, 204))
+        
+        EGP:egpBox(2, vec2(256, 32), vec2(512, 64))
+        EGP:egpColor(2, vec(75))
+        
+        EGP:egpText(3, "Type -join" + CommandSuffix + " to join", vec2(256, 32))
+        EGP:egpAlign(3, 1, 1)
+        EGP:egpSize(3, 42)
+        
+        EGP:egpBox(4, vec2(256, 480), vec2(512, 64))
+        EGP:egpColor(4, vec(75))
+        
+        EGP:egpText(5, "Type -start" + CommandSuffix + " to start", vec2(256, 480))
+        EGP:egpAlign(5, 1, 1)
+        EGP:egpSize(5, 32)
+        
+        EGPObjs = EGP:egpNumObjects() + 1
+        Position = 1
+        
+        
+        foreach(K:string, V:number = Players)
+        {
+            EGP:egpText(EGPObjs, K, vec2(256, 64 + Position * 64))
+            EGP:egpAlign(EGPObjs, 1, 1)
+            EGP:egpSize(EGPObjs, 42)
+            EGPObjs++
+            Position++
+        }
+    }
+    
+    function void drawBowlingScreen()
+    {
+        EGP:egpClear()
+        
+        EGP:egpBox(1, vec2(256), vec2(512))
+        EGP:egpMaterial(1, "gui/gradient_up")
+        EGP:egpColor(1, vec(163, 50, 204))
+        
+        EGP:egpText(2, "Round : " + Round, vec2(256, 64))
+        EGP:egpAlign(2, 1, 1)
+        EGP:egpSize(2, 42)
+        
+        EGP:egpText(3, "Use -leave" + CommandSuffix + " to leave!", vec2(256, 96))
+        EGP:egpAlign(3, 1, 1)
+        EGP:egpSize(3, 42)
+        
+        EGPObjs = EGP:egpNumObjects() + 1
+        Position = 1
+        
+        foreach(K, V:number = Players)
+        {
+            EGP:egpText(EGPObjs, K + " : " + V:toString(), vec2(256, 64 + Position * 64))
+            EGP:egpAlign(EGPObjs, 1, 1)
+            EGP:egpSize(EGPObjs, 42)
+            EGPObjs++
+            Position++
+        }
+    }
+    
+    function void drawEndScreen()
+    {
+        EGP:egpClear()
+        
+        EGP:egpBox(1, vec2(256), vec2(512))
+        EGP:egpMaterial(1, "gui/gradient_up")
+        EGP:egpColor(1, vec(163, 50, 204))
+        
+        HighestScore = Players:values():max()
+        HighestIndex = Players:values():maxIndex()
+        HighestName = Players:keys()[HighestIndex, string]
+        
+        EGP:egpText(2, "Winner : " + HighestName, vec2(256))
+        EGP:egpAlign(2, 1, 1)
+        EGP:egpSize(2, 32)
+    }
+        
+    holoDeleteAll()
+    
+    findByClass("gmod_wire_egp")
+    
+    Screen = findClosest(entity():pos())
+    entity():createWire(Screen, "EGP", "wirelink")
+    
+    Turn = 1
+    Round = 1
+    drawPlayersScreen()
+    
+    runOnChat(1)
+    
+    First = 1
+}
+
+elseif(clk("Setup"))
+{
+    HitPin = 0
+    
+    if(Turn == 1)
+    {
+        createPins(entity():pos() - entity():forward() * 220)
+        createBall()
+        createTrajectory()
+    }
+    
+    holoParent(BallID, CurPly)
+    holoPos(BallID, CurPly:pos() + CurPly:forward() * 10 + CurPly:up() * 50)
+    holoColor(BallID, floor(randvec(1, 255)))
+    holoMaterial(BallID, "models/debug/debugwhite")
+    
+    runOnKeys(CurPly, 1)
+    timer("MoveTrajectory", 200)
+}
+
+elseif(chatClk())
+{
+    LS = lastSaid():explode(" ")
+    
+    if(Playing)
+    {
+        if(LS[1, string]:lower() == "-add" + CommandSuffix & lastSpoke() == owner())
+        {
+            hideChat(1)
+            Ply = findPlayerByName(LS[2, string])
+            if(Players:exists(Ply:name()))
+            {
+    
+                if(owner() == lastSpoke())
+                {
+                    print("You have already joined the game!")
+                }
+                
+                else
+                {
+                    concmd(format("ulx psay \"%s\" you have already joined the game!", lastSpoke():name()))
+                }
+            }
+            
+            else
+            {
+                Players[Ply:name(), number] = 0
+                drawBowlingScreen()
+            }
+        }
+        
+        if(LS[1, string]:lower() == "-leave" + CommandSuffix)
+        {
+            hideChat(1)
+            Players:remove(lastSpoke():name())
+            if(Players:count() == 0)
+            {
+                reset()
+            }
+            
+            elseif(lastSpoke() == CurPly)
+            {
+                PlayerPos++
+                Turn = 1
+                if(PlayerPos > Players:count())
+                {
+                    PlayerPos = 1
+                }
+                CurPly = findPlayerByName(Players:keys()[PlayerPos, string])
+            }
+            
+            drawBowlingScreen()
+        }
+    }
+    
+    else
+    {
+        if(LS[1, string]:lower() == "-join" + CommandSuffix)
+        {
+            hideChat(1)
+            if(Players:exists(lastSpoke():name()))
+            {
+    
+                if(owner() == lastSpoke())
+                {
+                    print("You have already joined the game!")
+                }
+                
+                else
+                {
+                    concmd(format("ulx psay \"%s\" you have already joined the game!", lastSpoke():name()))
+                }
+            }
+            
+            else
+            {
+                moneyRequest(lastSpoke(), 5000)
+            }
+        }
+            
+        elseif(LS[1, string]:lower() == "-start" + CommandSuffix)
+        {
+            if(Players:count() != 0)
+            {
+                Playing = 1
+                drawBowlingScreen()
+                CurPly = findPlayerByName(Players:keys()[1, string])
+                timer("Setup", 200)
+                PlayerPos = 1
+                Turn = 1
+            }
+        }
+    }
+}
+
+elseif(moneyClk())
+{
+    Players[moneyClkPlayer():name(), number] = 0
+    drawPlayersScreen()
+}
+
+elseif(keyClk())
+{
+    if(CurPly:keyUse())
+    {
+        if(entity():pos():distance(CurPly:pos()) < 60)
+        {
+            Positioning = 0
+            stoptimer("MoveTrajectory")
+            holoUnparent(BallID)
+            holoPos(BallID, CurPly:pos() + vec(0, 0, 10))
+            BallDirection = (holoEntity(TrajectoryHoloID + 10):pos() - CurPly:pos()):normalized() + vec(random(0.2, -0.2), 0, 0)
+            timer("MoveBall", 50)
+            runOnKeys(CurPly, 0)
+        }
+    }
+}
+
+elseif(clk("MoveTrajectory"))
+{
+    if(entity():pos():distance(CurPly:pos()) < 60)
+    {
+        OwnerPos = CurPly:pos()
+        AimPos = CurPly:aimPos()
+        Distance = AimPos - OwnerPos
+        for(I = TrajectoryHoloID, TrajectoryHoloID + 10)
+        {
+            Percentage = I - TrajectoryHoloID + 1
+            Pos = OwnerPos + Distance * 0.1 * Percentage
+            Pos = Pos:setZ(PinPosition:z())
+            holoPos(I, Pos)
+        }
+    }
+    
+    else
+    {
+        for(I = TrajectoryHoloID, TrajectoryHoloID + 10)
+        {
+            holoPos(I, vec(0))
+        }
+    }
+    timer("MoveTrajectory", 200)
+}
+
+elseif(clk("MoveBall"))
+{
+    BallPos = holoEntity(BallID):pos()
+    RD = rangerOffset(BallPos + vec(0, 0, 20), BallPos - vec(0, 0, 20))
+    
+    if(RD:entity():getMaterial() == "models/gibs/metalgibs/metal_gibs" | RD:entity():getMaterial() == "sprops/sprops_grid_orange_12x12")
+    {
+        BallDirection = (BallPos - BallDirection * 20 -  RD:pos()):normalized():setZ(0)
+    }
+    
+    holoPos(BallID, BallPos + BallDirection * 4)
+    holoAng(BallID, holoEntity(BallID):angles() - ang(8, 8, 0))
+    timer("MoveBall", 50)
+    
+    for(I = 1, 30, 3)
+    {
+        HoloPos = holoEntity(I):pos()
+        if(HoloPos:distance(BallPos) < 13)
+        {
+            Direction = (HoloPos - BallPos):normalized()
+            Direction = Direction:setZ(0)
+            
+            if(!PinDirections:exists(I))
+            {
+                KnockedDown++
+            }
+            
+            PinDirections[I, vector] = Direction
+            
+            if(!HitPin)
+            {
+                HitPin = 1
+                timer("StopRolling", 2000)
+            }
+        }
+    }
+    
+    foreach(K, V:vector = PinDirections)
+    {
+        HoloPos = holoEntity(K):pos()
+        holoPos(K, HoloPos + Direction)
+        holoAng(K, holoEntity(K):angles() + ang(-2, 2, 0))
+        
+    }
+    
+    if(holoEntity(BallID):pos():distance(entity():pos()) > 180)
+    {
+        if(!HitPin)
+        {
+            timer("StopRolling", 2000)
+        }
+    }
+}
+
+elseif(clk("StopRolling"))
+{
+    stoptimer("MoveBall")
+    
+    foreach(K, V:vector = PinDirections)
+    {
+        holoDelete(K)
+    }
+    
+    Players[CurPly:name(), number] = Players[CurPly:name(), number] + KnockedDown
+    drawBowlingScreen()
+    
+    if(Turn == 1)
+    {
+        Turn = 2
+    }
+
+    
+    elseif(Turn == 2)
+    {
+        Round++
+        
+        End = 0
+        
+        if(Round > 5)
+        {
+            End = 1
+        }
+        
+        else
+        {
+            holoDeleteAll()
+            PlayerPos++
+            Turn = 1
+            if(PlayerPos > Players:count())
+            {
+                PlayerPos = 1
+            }
+            CurPly = findPlayerByName(Players:keys()[PlayerPos, string])
+        }
+    }
+    
+    if(End)
+    {
+        timer("Reset", 4000)
+        
+        drawEndScreen()
+    }
+    
+    else
+    {
+        KnockedDown = 0
+        PinDirections = array()
+        timer("Setup", 500)
+    }
+}
+
+elseif(clk("Reset"))
+{
+    reset()
+}
+
+
